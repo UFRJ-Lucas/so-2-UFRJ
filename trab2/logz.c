@@ -4,8 +4,8 @@
 #include <signal.h>
 
 #define TRUE 1
-#define BUFFER_SIZE 100
-#define SEPARATOR "========================\n"
+#define BUFFER_SIZE 512
+#define SEPARATOR "================================\n"
 
 void finish_log(int sig) {
     /* Finaliza o arquivo de log */
@@ -42,7 +42,7 @@ int main(int argc, char **argv) {
     signal(SIGTERM, finish_log);
 
     /* Imprime header no arquivo de log */
-    fprintf(log, "STAT PPID PID COMMAND\n");
+    fprintf(log, "PID     PPID COMMAND\n");
     fprintf(log, SEPARATOR);
 
     while(TRUE) {
@@ -51,14 +51,14 @@ int main(int argc, char **argv) {
         buffer[0] = '\0';
 
         /* Abre o pipe para o comando ps */
-        FILE *pipe = popen("ps -eo stat,ppid,pid,comm | grep '^Z'", "r");
+        FILE *pipe = popen("ps -eo stat,pid,ppid,comm | grep '^Z' | cut -c 9-", "r");
         if (pipe == NULL) {
             printf("Erro ao abrir o pipe.\n");
             return 1;
         }
         
         /* Escreve no arquivo de log */
-        while (fgets(buffer, sizeof(buffer), pipe) != NULL) {
+        while (fgets(buffer, BUFFER_SIZE, pipe) != NULL) {
             fprintf(log, "%s", buffer);
         }
 
