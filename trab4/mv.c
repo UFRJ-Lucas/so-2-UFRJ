@@ -6,12 +6,39 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <dirent.h>
+#include <getopt.h>
+
+#define TRUE 1
+#define FALSE 0
 
 // Função que move (ou renomeia) um arquivo de uma localização para outra
-int do_move(const char *source, const char *dest)
+int do_move(const char *source, const char *dest, int interactive, int overwrite, int verbose)
 {
+    struct stat buffer;
+    int file_exists = stat(dest, &buffer) == 0; // Verifica se o arquivo de destino já existe
+
+    if (file_exists){
+        if (interactive) {
+            // Destino já existe, perguntar ao usuário
+            char response;
+            printf("overwrite '%s'? (y/n [n]) ", dest);
+            response = getchar();
+            while (getchar() != '\n'); // Limpar o buffer de entrada
+            if (response != 'y' && response != 'Y') {
+                return 0; // Não sobrescrever, retornar sucesso
+            }
+        } else if (!overwrite) {
+            // Não permitir sobrescrever arquivo já existente
+            return 0; // Não sobrescrever, retornar sucesso
+        }
+    }
+
     if (rename(source, dest) == 0) // Tenta renomear (ou mover) o arquivo
     {
+        if (verbose)
+        {   // Exibir detalhes
+            printf("renomeado '%s' -> '%s'\n", source, dest);
+        }
         return 0; // Retorna 0 se bem-sucedido
     }
     else
@@ -21,20 +48,56 @@ int do_move(const char *source, const char *dest)
     }
 }
 
+void usage(char *func_name)
+{
+    // Função para imprimir a mensagem de uso e sair com falha
+    fprintf(stderr, "Usage:\n");
+    fprintf(stderr, "  Move a single file to a destination: %s [-v] [-i] [-f] [-n] <source> <destination>\n", func_name);
+    fprintf(stderr, "  Move multiple files to a destination: %s [-v] [-i] [-f] [-n] <source1> <source2> ... <destination>\n", func_name);
+    exit(EXIT_FAILURE);
+}
+
 // Função principal que processa os argumentos da linha de comando e chama `do_move` conforme necessário
 int main(int argc, char *argv[])
 {
-    // Verifica se o número de argumentos é menor que 3. Se for, imprime a mensagem de uso e sai com falha.
-    if (argc < 3)
+    // Variáveis para controlar as opções de linha de comando
+    int overwrite = TRUE;
+    int interactive = FALSE;
+    int verbose = FALSE;
+    int opt;
+
+    // Processar as opções de linha de comando
+    while ((opt = getopt(argc, argv, "ifnv")) != -1) {
+        switch (opt) {
+            case 'f':
+                overwrite = TRUE;
+                break;
+            case 'i':
+                interactive = TRUE;
+                break;
+            case 'n':
+                overwrite = FALSE;
+                break;
+            case 'v':
+                verbose = TRUE;
+                break;
+            default:
+                usage(argv[0]);
+        }
+    }
+
+    // Ajusta os argumentos restantes, necessário pois senão o getopt deixa os argumentos de opção no meio da lista de arquivos
+    argc -= optind;
+    argv += optind;
+
+    // Verifica se o número de argumentos é menor que 2. Se for, imprime a mensagem de uso e sai com falha.
+    if (argc < 2)
     {
-        fprintf(stderr, "Usage:\n");
-        fprintf(stderr, "  Move a single file to a destination: %s <source> <destination>\n", argv[0]);
-        fprintf(stderr, "  Move multiple files to a destination: %s <source1> <source2> ... <destination>\n", argv[0]);
-        exit(EXIT_FAILURE);
+        usage(argv[0]);
     }
 
     int is_dest_dir = 0;               // Variável para verificar se o destino é um diretório
-    const char *source = argv[1];      // Primeiro argumento é a fonte (arquivo a ser movido)
+    const char *source = argv[0];      // Primeiro argumento é a fonte (arquivo a ser movido)
     const char *dest = argv[argc - 1]; // Último argumento é o destino
     struct stat dest_stat;             // Estrutura para armazenar informações sobre o destino
 
@@ -45,9 +108,9 @@ int main(int argc, char *argv[])
     }
 
     // Renomeando um arquivo ou diretório
-    if (argc == 3 && !is_dest_dir)
+    if (argc == 2 && !is_dest_dir)
     {
-        if (do_move(source, dest) != 0)
+        if (do_move(source, dest, interactive, overwrite, verbose) != 0)
         {
             fprintf(stderr, "Failed to move '%s' to '%s'\n", source, dest);
             exit(EXIT_FAILURE);
@@ -57,7 +120,7 @@ int main(int argc, char *argv[])
     // Movendo um ou vários arquivos ou diretórios
     else
     {
-        for (int i = 1; i < argc - 1; ++i)
+        for (int i = 0; i < argc - 1; ++i)
         {
             const char *current_source = argv[i];          // Fonte atual
             char *filename = strrchr(current_source, '/'); // encontra a última ocorrência de `/` no caminho
@@ -75,7 +138,7 @@ int main(int argc, char *argv[])
 
             //constrói o caminho completo concatenando o diretório de destino (dest), uma `/` e o nome do arquivo ou diretório (filename)
             sprintf(new_dest, "%s/%s", dest, filename);
-            if (do_move(current_source, new_dest) != 0)
+            if (do_move(current_source, new_dest, interactive, overwrite, verbose) != 0)
             {
                 fprintf(stderr, "Failed to move '%s' to '%s'\n", current_source, new_dest);
                 exit(EXIT_FAILURE);
