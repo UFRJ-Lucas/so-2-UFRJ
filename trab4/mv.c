@@ -11,6 +11,18 @@
 #define TRUE 1
 #define FALSE 0
 
+// opções de linha de comando
+static struct option const long_options[] =
+{
+    {"backup", no_argument, NULL, 'b'},
+    {"force", no_argument, NULL, 'f'},
+    {"interactive", no_argument, NULL, 'i'},
+    {"no-clobber", no_argument, NULL, 'n'},
+    {"verbose", no_argument, NULL, 'v'},
+    {"help", no_argument, NULL, 'h'},
+    {NULL, 0, NULL, 0}
+};
+
 // Função que move (ou renomeia) um arquivo de uma localização para outra
 int do_move(const char *source, const char *dest, int interactive, int overwrite, int verbose, int backup)
 {
@@ -77,15 +89,15 @@ int do_move(const char *source, const char *dest, int interactive, int overwrite
 void usage()
 {
     // Função para imprimir a mensagem de uso e sair com falha
-    fprintf(stderr, "Usage: ./mv [OPTION]... SOURCE DEST\n");
-    fprintf(stderr, "Rename SOURCE to DEST, or move SOURCE(s) to DIRECTORY.\n");
-    fprintf(stderr, "  -b                           make a backup of each existing destination file\n");
-    fprintf(stderr, "  -f                           do not prompt before overwriting\n");
-    fprintf(stderr, "  -i                           prompt before overwrite\n");
-    fprintf(stderr, "  -n                           do not overwrite an existing file\n");
-    fprintf(stderr, "If you specify more than one of -i, -f, -n, only the final one takes effect.\n");
-    fprintf(stderr, "  -v                           explain what is being done\n");
-    fprintf(stderr, "  -h                           display this help and exit\n");
+    printf("Usage: ./mv [OPTION]... SOURCE DEST\n");
+    printf("Rename SOURCE to DEST, or move SOURCE(s) to DIRECTORY.\n");
+    printf("  -b, --backup                 make a backup of each existing destination file\n");
+    printf("  -f, --force                  do not prompt before overwriting\n");
+    printf("  -i, --interactive            prompt before overwrite\n");
+    printf("  -n, --no-clobber             do not overwrite an existing file\n");
+    printf("If you specify more than one of -i, -f, -n, only the final one takes effect.\n");
+    printf("  -v, --verbose                explain what is being done\n");
+    printf("  -h, --help                   display this help and exit\n");
     exit(EXIT_FAILURE);
 }
 
@@ -100,7 +112,7 @@ int main(int argc, char *argv[])
     int opt;
 
     // Processar as opções de linha de comando
-    while ((opt = getopt(argc, argv, "ifnvbh")) != -1) {
+    while ((opt = getopt_long(argc, argv, "ifnvbh", long_options, NULL)) != -1) {
         switch (opt) {
             case 'f':
                 overwrite = TRUE;
@@ -146,6 +158,7 @@ int main(int argc, char *argv[])
             fprintf(stderr, "mv: missing file operand\n");
             fprintf(stderr, "Try 'mv -h' for more information.\n");
         }
+        exit(EXIT_FAILURE);
     }
 
     int is_dest_dir = 0;               // Variável para verificar se o destino é um diretório
