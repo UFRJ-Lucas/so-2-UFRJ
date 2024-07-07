@@ -16,26 +16,15 @@ int do_move(const char *source, const char *dest, int interactive, int overwrite
 {
     struct stat buffer;
     int file_exists = stat(dest, &buffer) == 0; // Verifica se o arquivo de destino já existe
+    int backup_created = FALSE;
 
     if (file_exists)
     {
-        if (backup)
-        {
-            // Criar uma cópia de segurança do arquivo de destino
-            char backup_filename[strlen(dest) + 2]; // espaço para o nome do arquivo e o sufixo `~`
-            sprintf(backup_filename, "%s~", dest);
-            if (rename(dest, backup_filename) != 0)
-            {
-                fprintf(stderr, "Error creating backup of '%s': %s\n", dest, strerror(errno));
-                return -1;
-            }
-        }
-        
         if (interactive)
         {
             // Destino já existe, perguntar ao usuário
             char response;
-            printf("overwrite '%s'? (y/n [n]) ", dest);
+            printf("mv: overwrite '%s'? ", dest);
             response = getchar();
             while (getchar() != '\n'); // Limpar o buffer de entrada
             if (response != 'y' && response != 'Y')
@@ -48,13 +37,33 @@ int do_move(const char *source, const char *dest, int interactive, int overwrite
             // Não permitir sobrescrever arquivo já existente
             return 0; // Não sobrescrever, retornar sucesso
         }
+
+        if (backup)
+        {
+            // Criar uma cópia de segurança do arquivo de destino
+            char backup_filename[strlen(dest) + 2]; // espaço para o nome do arquivo e o sufixo `~`
+            sprintf(backup_filename, "%s~", dest);
+            if (rename(dest, backup_filename) != 0)
+            {
+                fprintf(stderr, "Error creating backup of '%s': %s\n", dest, strerror(errno));
+                return -1;
+            }
+            backup_created = TRUE;
+        }
     }
 
     if (rename(source, dest) == 0) // Tenta renomear (ou mover) o arquivo
     {
         if (verbose)
         {   // Exibir detalhes
-            printf("renamed '%s' -> '%s'\n", source, dest);
+            if (backup_created) 
+            {
+                printf("renamed '%s' -> '%s' (backup: '%s~')\n", source, dest, dest);
+            }
+            else
+            {
+                printf("renamed '%s' -> '%s'\n", source, dest);
+            }
         }
         return 0; // Retorna 0 se bem-sucedido
     }
@@ -65,12 +74,18 @@ int do_move(const char *source, const char *dest, int interactive, int overwrite
     }
 }
 
-void usage(char *func_name)
+void usage()
 {
     // Função para imprimir a mensagem de uso e sair com falha
-    fprintf(stderr, "Usage:\n");
-    fprintf(stderr, "  Move a single file to a destination: %s [-v] [-i] [-f] [-n] [-b] <source> <destination>\n", func_name);
-    fprintf(stderr, "  Move multiple files to a destination: %s [-v] [-i] [-f] [-n] [-b] <source1> <source2> ... <destination>\n", func_name);
+    fprintf(stderr, "Usage: ./mv [OPTION]... SOURCE DEST\n");
+    fprintf(stderr, "Rename SOURCE to DEST, or move SOURCE(s) to DIRECTORY.\n");
+    fprintf(stderr, "  -b                           make a backup of each existing destination file\n");
+    fprintf(stderr, "  -f                           do not prompt before overwriting\n");
+    fprintf(stderr, "  -i                           prompt before overwrite\n");
+    fprintf(stderr, "  -n                           do not overwrite an existing file\n");
+    fprintf(stderr, "If you specify more than one of -i, -f, -n, only the final one takes effect.\n");
+    fprintf(stderr, "  -v                           explain what is being done\n");
+    fprintf(stderr, "  -h                           display this help and exit\n");
     exit(EXIT_FAILURE);
 }
 
@@ -85,16 +100,19 @@ int main(int argc, char *argv[])
     int opt;
 
     // Processar as opções de linha de comando
-    while ((opt = getopt(argc, argv, "ifnvb")) != -1) {
+    while ((opt = getopt(argc, argv, "ifnvbh")) != -1) {
         switch (opt) {
             case 'f':
                 overwrite = TRUE;
+                interactive = FALSE;
                 break;
             case 'i':
+                overwrite = FALSE;
                 interactive = TRUE;
                 break;
             case 'n':
                 overwrite = FALSE;
+                interactive = FALSE;
                 break;
             case 'v':
                 verbose = TRUE;
@@ -102,8 +120,12 @@ int main(int argc, char *argv[])
             case 'b':
                 backup = TRUE;
                 break;
+            case 'h':
+                usage();
+                exit(EXIT_SUCCESS);
             default:
-                usage(argv[0]);
+                fprintf(stderr, "Try 'mv -h' for more information.\n");
+                exit(EXIT_FAILURE);
         }
     }
 
@@ -114,7 +136,16 @@ int main(int argc, char *argv[])
     // Verifica se o número de argumentos é menor que 2. Se for, imprime a mensagem de uso e sai com falha.
     if (argc < 2)
     {
-        usage(argv[0]);
+        if (argc == 1)
+        {
+            fprintf(stderr, "mv: missing destination file operand after %s\n", argv[0]);
+            fprintf(stderr, "Try 'mv -h' for more information.\n");
+        }
+        else
+        {
+            fprintf(stderr, "mv: missing file operand\n");
+            fprintf(stderr, "Try 'mv -h' for more information.\n");
+        }
     }
 
     int is_dest_dir = 0;               // Variável para verificar se o destino é um diretório
