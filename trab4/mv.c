@@ -12,22 +12,39 @@
 #define FALSE 0
 
 // Função que move (ou renomeia) um arquivo de uma localização para outra
-int do_move(const char *source, const char *dest, int interactive, int overwrite, int verbose)
+int do_move(const char *source, const char *dest, int interactive, int overwrite, int verbose, int backup)
 {
     struct stat buffer;
     int file_exists = stat(dest, &buffer) == 0; // Verifica se o arquivo de destino já existe
 
-    if (file_exists){
-        if (interactive) {
+    if (file_exists)
+    {
+        if (backup)
+        {
+            // Criar uma cópia de segurança do arquivo de destino
+            char backup_filename[strlen(dest) + 2]; // espaço para o nome do arquivo e o sufixo `~`
+            sprintf(backup_filename, "%s~", dest);
+            if (rename(dest, backup_filename) != 0)
+            {
+                fprintf(stderr, "Error creating backup of '%s': %s\n", dest, strerror(errno));
+                return -1;
+            }
+        }
+        
+        if (interactive)
+        {
             // Destino já existe, perguntar ao usuário
             char response;
             printf("overwrite '%s'? (y/n [n]) ", dest);
             response = getchar();
             while (getchar() != '\n'); // Limpar o buffer de entrada
-            if (response != 'y' && response != 'Y') {
+            if (response != 'y' && response != 'Y')
+            {
                 return 0; // Não sobrescrever, retornar sucesso
             }
-        } else if (!overwrite) {
+        }
+        else if (!overwrite)
+        {
             // Não permitir sobrescrever arquivo já existente
             return 0; // Não sobrescrever, retornar sucesso
         }
@@ -37,7 +54,7 @@ int do_move(const char *source, const char *dest, int interactive, int overwrite
     {
         if (verbose)
         {   // Exibir detalhes
-            printf("renomeado '%s' -> '%s'\n", source, dest);
+            printf("renamed '%s' -> '%s'\n", source, dest);
         }
         return 0; // Retorna 0 se bem-sucedido
     }
@@ -52,8 +69,8 @@ void usage(char *func_name)
 {
     // Função para imprimir a mensagem de uso e sair com falha
     fprintf(stderr, "Usage:\n");
-    fprintf(stderr, "  Move a single file to a destination: %s [-v] [-i] [-f] [-n] <source> <destination>\n", func_name);
-    fprintf(stderr, "  Move multiple files to a destination: %s [-v] [-i] [-f] [-n] <source1> <source2> ... <destination>\n", func_name);
+    fprintf(stderr, "  Move a single file to a destination: %s [-v] [-i] [-f] [-n] [-b] <source> <destination>\n", func_name);
+    fprintf(stderr, "  Move multiple files to a destination: %s [-v] [-i] [-f] [-n] [-b] <source1> <source2> ... <destination>\n", func_name);
     exit(EXIT_FAILURE);
 }
 
@@ -64,10 +81,11 @@ int main(int argc, char *argv[])
     int overwrite = TRUE;
     int interactive = FALSE;
     int verbose = FALSE;
+    int backup = FALSE;
     int opt;
 
     // Processar as opções de linha de comando
-    while ((opt = getopt(argc, argv, "ifnv")) != -1) {
+    while ((opt = getopt(argc, argv, "ifnvb")) != -1) {
         switch (opt) {
             case 'f':
                 overwrite = TRUE;
@@ -80,6 +98,9 @@ int main(int argc, char *argv[])
                 break;
             case 'v':
                 verbose = TRUE;
+                break;
+            case 'b':
+                backup = TRUE;
                 break;
             default:
                 usage(argv[0]);
@@ -110,7 +131,7 @@ int main(int argc, char *argv[])
     // Renomeando um arquivo ou diretório
     if (argc == 2 && !is_dest_dir)
     {
-        if (do_move(source, dest, interactive, overwrite, verbose) != 0)
+        if (do_move(source, dest, interactive, overwrite, verbose, backup) != 0)
         {
             fprintf(stderr, "Failed to move '%s' to '%s'\n", source, dest);
             exit(EXIT_FAILURE);
@@ -136,9 +157,9 @@ int main(int argc, char *argv[])
             // new_dest é alocado para ter espaço suficiente para o caminho completo (dest) mais o nome do arquivo ou diretório (filename) e um `/` adicional
             char new_dest[strlen(dest) + strlen(filename) + 2];
 
-            //constrói o caminho completo concatenando o diretório de destino (dest), uma `/` e o nome do arquivo ou diretório (filename)
+            // constrói o caminho completo concatenando o diretório de destino (dest), uma `/` e o nome do arquivo ou diretório (filename)
             sprintf(new_dest, "%s/%s", dest, filename);
-            if (do_move(current_source, new_dest, interactive, overwrite, verbose) != 0)
+            if (do_move(current_source, new_dest, interactive, overwrite, verbose, backup) != 0)
             {
                 fprintf(stderr, "Failed to move '%s' to '%s'\n", current_source, new_dest);
                 exit(EXIT_FAILURE);
